@@ -1,22 +1,5 @@
-// src/pages/SignupPage.jsx — Task 02 (updated)
-// Fixes applied:
-//   1. Show/hide password toggle (eye icon)
-//   2. No code change needed for RLS — fix is a Supabase SQL policy (see comment below)
-//
-// ─── RLS FIX (your friend does this in Supabase SQL Editor) ───────────────
-// The error "new row violates row-level security policy for table companies"
-// means the anon/authenticated role can't INSERT into companies.
-// Person A needs to run this in the Supabase SQL Editor:
-//
-//   create policy "Allow insert during signup"
-//   on companies for insert
-//   with check (true);
-//
-// That's it. Auth context's signUp() will then be able to create the company row.
-// ──────────────────────────────────────────────────────────────────────────────
-
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { fetchCountriesWithCurrencies } from '@/lib/currency'
 
@@ -26,7 +9,6 @@ const PASSWORD_RULES = [
   { label: 'One special character (!@#…)', test: p => /[^a-zA-Z0-9]/.test(p) },
 ]
 
-// ─── Simple eye / eye-off SVG icons ───────────────────────────────────────
 const EyeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none"
        viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -58,13 +40,14 @@ const EyeOffIcon = () => (
 
 export default function SignupPage() {
   const { signUp } = useAuth()
+  const navigate = useNavigate()
 
   const [name,     setName]     = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [country,  setCountry]  = useState('')
   const [currency, setCurrency] = useState('')
-  const [showPwd,  setShowPwd]  = useState(false)   // ← toggle state
+  const [showPwd,  setShowPwd]  = useState(false)
 
   const [countries,        setCountries]        = useState([])
   const [loadingCountries, setLoadingCountries] = useState(true)
@@ -86,7 +69,6 @@ export default function SignupPage() {
     setCurrency(match ? match.currencyCode : '')
   }
 
-  // ── Validation ─────────────────────────────────────────────────────────────
   const validate = () => {
     const errs = {}
     if (!name.trim())  errs.name    = 'Name is required'
@@ -100,7 +82,6 @@ export default function SignupPage() {
     return errs
   }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -110,7 +91,7 @@ export default function SignupPage() {
     setLoading(true)
     try {
       await signUp({ name, email, password, country, currency })
-      // App.jsx RoleRouter handles redirect to /admin after signUp
+      navigate('/')
     } catch (err) {
       setError(err.message || 'Signup failed. Please try again.')
     } finally {
@@ -118,7 +99,6 @@ export default function SignupPage() {
     }
   }
 
-  // ── Shared input class ─────────────────────────────────────────────────────
   const inputBase = `w-full px-4 py-2.5 rounded-lg text-sm border
     focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors`
   const inputClass = (field) =>
@@ -130,7 +110,6 @@ export default function SignupPage() {
     <div className="min-h-screen flex"
       style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)' }}>
 
-      {/* ── Left panel — branding ── */}
       <div className="hidden lg:flex lg:w-5/12 flex-col justify-between p-14">
         <div>
           <h1 style={{
@@ -167,7 +146,6 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* ── Right panel — form ── */}
       <div className="flex-1 flex items-center justify-center px-6 py-10">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
 
@@ -176,7 +154,6 @@ export default function SignupPage() {
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
-            {/* Full Name */}
             <div>
               <label className="block text-xs font-semibold text-gray-600
                                 uppercase tracking-wide mb-1">Full Name</label>
@@ -187,7 +164,6 @@ export default function SignupPage() {
               )}
             </div>
 
-            {/* Email */}
             <div>
               <label className="block text-xs font-semibold text-gray-600
                                 uppercase tracking-wide mb-1">Email</label>
@@ -198,7 +174,6 @@ export default function SignupPage() {
               )}
             </div>
 
-            {/* Password with show/hide toggle */}
             <div>
               <label className="block text-xs font-semibold text-gray-600
                                 uppercase tracking-wide mb-1">Password</label>
@@ -211,7 +186,6 @@ export default function SignupPage() {
                   placeholder="Min. 8 characters"
                   className={`${inputClass('password')} pr-10`}
                 />
-                {/* Eye toggle button */}
                 <button
                   type="button"
                   onClick={() => setShowPwd(v => !v)}
@@ -227,7 +201,6 @@ export default function SignupPage() {
                 <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
               )}
 
-              {/* Live password rules — appear on first keystroke */}
               {passwordFocused && password.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {PASSWORD_RULES.map(rule => {
@@ -245,7 +218,6 @@ export default function SignupPage() {
               )}
             </div>
 
-            {/* Country + Currency */}
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs font-semibold text-gray-600
@@ -263,7 +235,6 @@ export default function SignupPage() {
                 )}
               </div>
 
-              {/* Read-only currency — auto-filled by country selection */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600
                                   uppercase tracking-wide mb-1">Currency</label>
@@ -273,7 +244,6 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Global error */}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 text-sm
                               rounded-lg px-4 py-3">
