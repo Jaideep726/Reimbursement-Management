@@ -28,7 +28,6 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signIn({ email, password })
-      // App.jsx RoleRouter handles redirect — nothing to do here
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.')
     } finally {
@@ -37,8 +36,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)' }}
+    >
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
 
         {/* App name */}
         <div className="text-center mb-8">
