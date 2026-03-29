@@ -271,8 +271,8 @@ function ApprovalRulesTab({ companyId }) {
   const [managers,       setManagers]       = useState([])
   const [loading,        setLoading]        = useState(true)
   const [showForm,       setShowForm]       = useState(false)
-  const [editingRule,    setEditingRule]    = useState(null)   // rule object being edited
-  const [deleteTarget,   setDeleteTarget]   = useState(null)   // rule object to delete
+  const [editingRule,    setEditingRule]    = useState(null)
+  const [deleteTarget,   setDeleteTarget]   = useState(null)
   const [deleteLoading,  setDeleteLoading]  = useState(false)
 
   const fetchRules = async () => {
@@ -309,20 +309,18 @@ function ApprovalRulesTab({ companyId }) {
   }
 
   const handleEditClick = async (rule) => {
-    // Fetch existing approvers for this rule so the form is pre-populated
     const { data: approverRows } = await supabase
       .from('rule_approvers')
-      .select('approver_id, step_order, is_auto_approver')
+      .select('approver_id, step_order, is_required')
       .eq('rule_id', rule.id)
       .order('step_order', { ascending: true })
 
-    // Enrich with manager names
     const enriched = (approverRows ?? []).map(row => {
       const mgr = managers.find(m => m.id === row.approver_id)
       return {
         id:             row.approver_id,
         name:           mgr?.name ?? row.approver_id,
-        isAutoApprover: row.is_auto_approver,
+        isAutoApprover: row.is_required,
       }
     })
 
@@ -334,7 +332,6 @@ function ApprovalRulesTab({ companyId }) {
     if (!deleteTarget) return
     setDeleteLoading(true)
     try {
-      // Delete child approvers first (FK constraint), then the rule
       await supabase.from('rule_approvers').delete().eq('rule_id', deleteTarget.id)
       await supabase.from('approval_rules').delete().eq('id', deleteTarget.id)
       setDeleteTarget(null)
@@ -348,7 +345,6 @@ function ApprovalRulesTab({ companyId }) {
 
   return (
     <div>
-      {/* Confirm delete dialog */}
       {deleteTarget && (
         <ConfirmDeleteDialog
           title="Delete Rule"
@@ -372,7 +368,6 @@ function ApprovalRulesTab({ companyId }) {
         )}
       </div>
 
-      {/* Rules list */}
       {!showForm && (
         loading ? (
           <p className="text-sm text-gray-500 py-8 text-center">Loading rules…</p>
@@ -413,7 +408,6 @@ function ApprovalRulesTab({ companyId }) {
                     </div>
                   </div>
 
-                  {/* Action buttons */}
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => handleEditClick(rule)}
@@ -439,7 +433,6 @@ function ApprovalRulesTab({ companyId }) {
         )
       )}
 
-      {/* Create / Edit Rule form */}
       {showForm && (
         <CreateRuleForm
           companyId={companyId}
@@ -506,7 +499,6 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
       let ruleId
 
       if (isEditing) {
-        // Update the rule row
         const { error: updateErr } = await supabase
           .from('approval_rules')
           .update({
@@ -520,14 +512,12 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
         if (updateErr) throw updateErr
         ruleId = editingRule.id
 
-        // Delete all old approver rows, then re-insert the updated list
         const { error: delErr } = await supabase
           .from('rule_approvers')
           .delete()
           .eq('rule_id', ruleId)
         if (delErr) throw delErr
       } else {
-        // Insert new rule row
         const { data: rule, error: ruleErr } = await supabase
           .from('approval_rules')
           .insert({
@@ -544,13 +534,12 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
         ruleId = rule.id
       }
 
-      // Insert approvers (fresh for both create and edit)
       if (approvers.length > 0) {
         const approverRows = approvers.map((approver, index) => ({
-          rule_id:          ruleId,
-          approver_id:      approver.id,
-          step_order:       index,
-          is_auto_approver: approver.isAutoApprover,
+          rule_id:     ruleId,
+          approver_id: approver.id,
+          step_order:  index,
+          is_required: approver.isAutoApprover,
         }))
         const { error: approverErr } = await supabase
           .from('rule_approvers')
@@ -579,7 +568,6 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
         {isEditing ? `✏️ Edit Rule — ${editingRule.name}` : 'Create Approval Rule'}
       </h3>
 
-      {/* Rule name */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Rule Name</label>
         <input type="text" value={ruleName}
@@ -589,7 +577,6 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
         {fieldErrors.ruleName && <p className="text-red-500 text-xs mt-1">{fieldErrors.ruleName}</p>}
       </div>
 
-      {/* Description */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
           Description
@@ -601,7 +588,6 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
           className={inputClass('description')} />
       </div>
 
-      {/* Toggles */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50">
           <div>
@@ -630,7 +616,6 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
         </div>
       </div>
 
-      {/* Min approval % */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
           Minimum Approval %
@@ -650,7 +635,6 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
         {fieldErrors.minPct && <p className="text-red-500 text-xs mt-1">{fieldErrors.minPct}</p>}
       </div>
 
-      {/* Approvers list */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Approvers</label>
         <div className="flex gap-2 mb-3">
@@ -915,7 +899,6 @@ function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
     setLoading(true)
     try {
       if (isEditing) {
-        // Update user row (email stays the same — changing auth email needs extra logic)
         const { error: updateErr } = await supabase
           .from('users')
           .update({
@@ -948,7 +931,6 @@ function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
        ? 'border-red-400 bg-red-50'
        : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`
 
-  // Success screen shown only after creating a NEW user
   if (tempPassword) {
     return (
       <Overlay onClose={onSaved}>
@@ -992,7 +974,6 @@ function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
       </p>
 
       <div className="space-y-4">
-        {/* Name */}
         <div>
           <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Full Name</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
@@ -1000,7 +981,6 @@ function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
           {fieldErrors.name && <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>}
         </div>
 
-        {/* Email — read-only when editing */}
         <div>
           <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Email</label>
           {isEditing ? (
@@ -1017,7 +997,6 @@ function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
           )}
         </div>
 
-        {/* Role */}
         <div>
           <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Role</label>
           <select value={role} onChange={e => { setRole(e.target.value); setManagerId('') }}
@@ -1028,7 +1007,6 @@ function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
           {fieldErrors.role && <p className="text-red-500 text-xs mt-1">{fieldErrors.role}</p>}
         </div>
 
-        {/* Manager — only for employees */}
         {role === 'employee' && (
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Assign Manager</label>
