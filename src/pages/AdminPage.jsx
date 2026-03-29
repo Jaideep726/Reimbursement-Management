@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { supabase }            from '@/lib/supabase'
 import { createUser }          from '@/lib/admin'
 import { useAuth }             from '@/context/AuthContext'
+import { useNavigate }         from 'react-router-dom'
 
 // ─── Role badge colours ────────────────────────────────────────────────────
 const ROLE_BADGE = {
@@ -17,18 +18,194 @@ const ROLE_BADGE = {
 
 const TABS = ['Users', 'Approval Rules', 'All Expenses']
 
+// ─── Change Password Modal ─────────────────────────────────────────────────
+function ChangePasswordModal({ onClose, userEmail }) {
+  const [currentPwd, setCurrentPwd]   = useState('')
+  const [newPwd, setNewPwd]           = useState('')
+  const [confirmPwd, setConfirmPwd]   = useState('')
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNew, setShowNew]         = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState(null)
+  const [success, setSuccess]         = useState(false)
+
+  async function handleUpdate() {
+    setError(null)
+    if (!currentPwd)               return setError('Enter your current password.')
+    if (newPwd.length < 6)         return setError('New password must be at least 6 characters.')
+    if (newPwd !== confirmPwd)      return setError('New passwords do not match.')
+    if (newPwd === currentPwd)      return setError('New password must differ from current password.')
+    setLoading(true)
+    try {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: currentPwd })
+      if (signInErr) throw new Error('Current password is incorrect.')
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPwd })
+      if (updateErr) throw updateErr
+      setSuccess(true)
+    } catch (err) {
+      setError(err.message || 'Failed to update password.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
+         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl bg-white">
+        {success ? (
+          <div className="text-center py-4">
+            <div className="text-4xl mb-3">✅</div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Password Updated</h3>
+            <p className="text-sm text-gray-500 mb-5">Your password has been changed successfully.</p>
+            <button onClick={onClose}
+              className="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">🔑 Change Password</h3>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <PwdField label="Current Password"     value={currentPwd}  onChange={setCurrentPwd}  show={showCurrent} onToggle={() => setShowCurrent(s => !s)} />
+            <PwdField label="New Password"         value={newPwd}      onChange={setNewPwd}       show={showNew}     onToggle={() => setShowNew(s => !s)}     hint="Minimum 6 characters" />
+            <PwdField label="Confirm New Password" value={confirmPwd}  onChange={setConfirmPwd}   show={showConfirm} onToggle={() => setShowConfirm(s => !s)} />
+            {error && <p className="mb-3 text-xs text-red-500">{error}</p>}
+            <div className="flex gap-3 justify-end mt-2">
+              <button onClick={onClose} disabled={loading}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleUpdate} disabled={loading}
+                className="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white transition-colors">
+                {loading ? 'Updating…' : 'Update Password'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PwdField({ label, value, onChange, show, onToggle, hint }) {
+  return (
+    <div className="mb-3">
+      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{label}</label>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full px-3 py-2.5 pr-14 rounded-lg text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button type="button" onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+    </div>
+  )
+}
+
+// ─── Side Drawer ───────────────────────────────────────────────────────────
+function SideDrawer({ open, onClose, onChangePwd, onLogout }) {
+  return (
+    <>
+      {open && (
+        <div className="fixed inset-0 z-40" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose} />
+      )}
+      <div className="fixed top-0 left-0 z-50 h-full flex flex-col"
+           style={{
+             width: '240px',
+             backgroundColor: '#1e293b',
+             borderRight: '1px solid #334155',
+             transform: open ? 'translateX(0)' : 'translateX(-100%)',
+             transition: 'transform 0.25s ease',
+             boxShadow: open ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
+           }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #334155' }}>
+          <span className="text-sm font-semibold text-white">Menu</span>
+          <button onClick={onClose} style={{ color: '#64748b', fontSize: '1.2rem', lineHeight: 1 }}>✕</button>
+        </div>
+        <nav className="flex flex-col p-3 gap-1 flex-1">
+          <button
+            onClick={() => { onChangePwd(); onClose() }}
+            className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-left transition-colors"
+            style={{ color: '#cbd5e1' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <span>🔑</span> Change Password
+          </button>
+        </nav>
+        <div className="p-3" style={{ borderTop: '1px solid #334155' }}>
+          <button onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors"
+            style={{ color: '#fca5a5', backgroundColor: 'transparent' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#450a0a'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <span>🚪</span> Logout
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function AdminPage() {
-  const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState('Users')
+  const { profile, signOut } = useAuth()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab]       = useState('Users')
+  const [showDrawer, setShowDrawer]     = useState(false)
+  const [showChangePwd, setShowChangePwd] = useState(false)
+
+  async function handleLogout() {
+    await signOut()
+    navigate('/login')
+  }
 
   return (
     <div
       className="min-h-screen px-4 py-8"
       style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%)' }}
     >
+      {/* ── Side Drawer ── */}
+      <SideDrawer
+        open={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        onChangePwd={() => setShowChangePwd(true)}
+        onLogout={handleLogout}
+      />
+
+      {/* ── Change Password Modal ── */}
+      {showChangePwd && (
+        <ChangePasswordModal
+          onClose={() => setShowChangePwd(false)}
+          userEmail={profile?.email || ''}
+        />
+      )}
+
       <div className="max-w-5xl mx-auto">
 
-        <h1 className="text-2xl font-bold text-white mb-6">Admin Dashboard</h1>
+        {/* ── Page header with hamburger ── */}
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => setShowDrawer(true)}
+            className="flex flex-col justify-center items-center w-9 h-9 rounded-lg transition-colors"
+            style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}
+            aria-label="Open menu"
+          >
+            <span style={{ display: 'block', width: '16px', height: '2px', backgroundColor: '#cbd5e1', marginBottom: '4px', borderRadius: '1px' }} />
+            <span style={{ display: 'block', width: '16px', height: '2px', backgroundColor: '#cbd5e1', marginBottom: '4px', borderRadius: '1px' }} />
+            <span style={{ display: 'block', width: '16px', height: '2px', backgroundColor: '#cbd5e1', borderRadius: '1px' }} />
+          </button>
+          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+        </div>
 
         {/* ── Tab bar ── */}
         <div className="flex gap-1 mb-6 bg-white/10 rounded-xl p-1 w-fit">

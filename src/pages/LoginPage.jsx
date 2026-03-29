@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
 
 // ─── Simple eye / eye-off SVG icons (no extra library needed) ─────────────
 const EyeIcon = () => (
@@ -67,13 +68,29 @@ export default function LoginPage() {
     setFieldErrors({})
     setLoading(true)
     try {
-      // signIn() returns the full profile including the role field
-      const profile = await signIn({ email, password })
+      // Step 1: sign in via AuthContext
+      const returnedProfile = await signIn({ email, password })
 
-      // ── Role-based redirect ──────────────────────────────────────────────
-      // AuthContext.signIn() returns profile which has a `role` field.
-      // We redirect manually here so the user lands on the right page.
-      switch (profile?.role) {
+      // Step 2: determine role — prefer what signIn() returned, but if it
+      // didn't return a profile (AuthContext doesn't return it in some
+      // implementations) fetch the role directly from Supabase ourselves.
+      let role = returnedProfile?.role
+
+      if (!role) {
+        // Supabase session is now active — get the current user and look up role
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          const { data: profileRow } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', authUser.id)
+            .single()
+          role = profileRow?.role
+        }
+      }
+
+      // Step 3: navigate to the right page based on role
+      switch (role) {
         case 'admin':    navigate('/admin');    break
         case 'manager':  navigate('/manager');  break
         case 'employee': navigate('/employee'); break
