@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const AuthContext = createContext({})
@@ -8,20 +8,20 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const signingUp = useRef(false)
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
       else setLoading(false)
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else {
+      if (session?.user) {
+        if (!signingUp.current) fetchProfile(session.user.id)
+      } else {
         setRole(null)
         setProfile(null)
         setLoading(false)
@@ -46,27 +46,28 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp({ name, email, password, country, currency }) {
-    // 1. Create auth user
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) throw error
+    signingUp.current = true
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      if (error) throw error
 
-    // 2. Create company
-    const { data: company, error: companyError } = await supabase
-      .from('companies')
-      .insert({ name: `${name}'s Company`, country, currency_code: currency })
-      .select()
-      .single()
-    if (companyError) throw companyError
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .insert({ name: `${name}'s Company`, country, currency_code: currency })
+        .select()
+        .single()
+      if (companyError) throw companyError
 
-    // 3. Create admin user profile
-    const { error: userError } = await supabase
-      .from('users')
-      .insert({ id: data.user.id, company_id: company.id, name, email, role: 'admin' })
-    if (userError) throw userError
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({ id: data.user.id, company_id: company.id, name, email, role: 'admin' })
+      if (userError) throw userError
 
-    await fetchProfile(data.user.id)
-
-    return data
+      await fetchProfile(data.user.id)
+      return data
+    } finally {
+      signingUp.current = false
+    }
   }
 
   async function signIn({ email, password }) {

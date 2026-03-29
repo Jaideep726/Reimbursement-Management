@@ -255,6 +255,7 @@ export default function AdminPage() {
 }
 
 function ApprovalRulesTab({ companyId }) {
+<<<<<<< HEAD
   const [rules,         setRules]         = useState([])
   const [managers,      setManagers]      = useState([])
   const [loading,       setLoading]       = useState(true)
@@ -262,6 +263,15 @@ function ApprovalRulesTab({ companyId }) {
   const [editingRule,   setEditingRule]   = useState(null)
   const [deleteTarget,  setDeleteTarget]  = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+=======
+  const [rules,          setRules]          = useState([])
+  const [managers,       setManagers]       = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [showForm,       setShowForm]       = useState(false)
+  const [editingRule,    setEditingRule]    = useState(null)
+  const [deleteTarget,   setDeleteTarget]   = useState(null)
+  const [deleteLoading,  setDeleteLoading]  = useState(false)
+>>>>>>> b72879d269109fcb5d18c3fcf2160ab6c321f881
 
   const fetchRules = async () => {
     if (!companyId) return
@@ -299,16 +309,22 @@ function ApprovalRulesTab({ companyId }) {
   const handleEditClick = async (rule) => {
     const { data: approverRows } = await supabase
       .from('rule_approvers')
-      .select('approver_id, step_order, is_auto_approver')
+      .select('approver_id, step_order, is_required')
       .eq('rule_id', rule.id)
       .order('step_order', { ascending: true })
 
     const enriched = (approverRows ?? []).map(row => {
       const mgr = managers.find(m => m.id === row.approver_id)
       return {
+<<<<<<< HEAD
         id:         row.approver_id,
         name:       mgr?.name ?? row.approver_id,
         isRequired: row.is_required,
+=======
+        id:             row.approver_id,
+        name:           mgr?.name ?? row.approver_id,
+        isAutoApprover: row.is_required,
+>>>>>>> b72879d269109fcb5d18c3fcf2160ab6c321f881
       }
     })
 
@@ -383,6 +399,10 @@ function ApprovalRulesTab({ companyId }) {
                       )}
                     </div>
                   </div>
+<<<<<<< HEAD
+=======
+
+>>>>>>> b72879d269109fcb5d18c3fcf2160ab6c321f881
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => handleEditClick(rule)}
@@ -474,7 +494,15 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
           .eq('id', editingRule.id)
         if (updateErr) throw updateErr
         ruleId = editingRule.id
+<<<<<<< HEAD
         const { error: delErr } = await supabase.from('rule_approvers').delete().eq('rule_id', ruleId)
+=======
+
+        const { error: delErr } = await supabase
+          .from('rule_approvers')
+          .delete()
+          .eq('rule_id', ruleId)
+>>>>>>> b72879d269109fcb5d18c3fcf2160ab6c321f881
         if (delErr) throw delErr
       } else {
         const { data: rule, error: ruleErr } = await supabase
@@ -495,10 +523,17 @@ function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel })
 
       if (approvers.length > 0) {
         const approverRows = approvers.map((approver, index) => ({
+<<<<<<< HEAD
           rule_id:          ruleId,
           approver_id:      approver.id,
           step_order:       index,
           is_required:      approver.isRequired,
+=======
+          rule_id:     ruleId,
+          approver_id: approver.id,
+          step_order:  index,
+          is_required: approver.isAutoApprover,
+>>>>>>> b72879d269109fcb5d18c3fcf2160ab6c321f881
         }))
         const { error: approverErr } = await supabase.from('rule_approvers').insert(approverRows)
         if (approverErr) throw approverErr
@@ -1042,4 +1077,12 @@ function Overlay({ children, onClose }) {
       </div>
     </div>
   )
+<<<<<<< HEAD
 }
+=======
+}
+
+function PlaceholderTab({ label }) {
+  return <div className="py-16 text-center text-gray-400 text-sm">{label}</div>
+}
+>>>>>>> b72879d269109fcb5d18c3fcf2160ab6c321f881
