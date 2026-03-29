@@ -101,7 +101,7 @@ export const processApproval = async (expenseId, approverId, action, comment) =>
   // Mark this action
   await supabase
     .from('approval_actions')
-    .update({ action, comment, status: action, acted_at: new Date().toISOString() })
+    .update({ comment, status: action, acted_at: new Date().toISOString() })
     .eq('expense_id', expenseId)
     .eq('approver_id', approverId)
 
