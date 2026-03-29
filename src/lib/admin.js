@@ -9,6 +9,7 @@ export const createUser = async ({ name, email, role, managerId, companyId }) =>
     options: { emailRedirectTo: window.location.origin }
   })
   if (authErr) throw authErr
+  if (authData.user.identities?.length === 0) throw new Error('Email already exists')
 
   const { data: profile, error } = await supabase
     .from('users')
