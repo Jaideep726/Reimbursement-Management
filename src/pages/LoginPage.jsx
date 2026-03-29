@@ -1,24 +1,64 @@
+// src/pages/LoginPage.jsx — Task 01 (updated)
+// Fixes applied:
+//   1. Show/hide password toggle (eye icon)
+//   2. Role-based redirect after successful login (admin/manager/employee)
+
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 
-export default function LoginPage() {
-  const { signIn } = useAuth()
+// ─── Simple eye / eye-off SVG icons (no extra library needed) ─────────────
+const EyeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none"
+       viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M2.458 12C3.732 7.943 7.523 5 12 5
+         c4.477 0 8.268 2.943 9.542 7
+         -1.274 4.057-5.065 7-9.542 7
+         -4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+)
 
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+const EyeOffIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none"
+       viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M13.875 18.825A10.05 10.05 0 0112 19
+         c-4.477 0-8.268-2.943-9.542-7
+         a9.97 9.97 0 012.255-3.592
+         M6.938 6.938A9.969 9.969 0 0112 5
+         c4.477 0 8.268 2.943 9.542 7
+         a9.97 9.97 0 01-1.333 2.694
+         M6.938 6.938L3 3m3.938 3.938l4.124 4.124
+         M17.063 17.063l3.937 3.937
+         m-3.937-3.937l-4.124-4.124" />
+  </svg>
+)
+
+export default function LoginPage() {
+  const { signIn }    = useAuth()
+  const navigate      = useNavigate()
+
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [showPwd,     setShowPwd]     = useState(false)   // ← toggle state
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
 
+  // ── Validation ─────────────────────────────────────────────────────────────
   const validate = () => {
     const errs = {}
-    if (!email.trim())        errs.email    = 'Email is required'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errs.email = 'Enter a valid email address'
-    if (!password.trim())     errs.password = 'Password is required'
+    if (!email.trim())    errs.email    = 'Email is required'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
+                          errs.email    = 'Enter a valid email address'
+    if (!password.trim()) errs.password = 'Password is required'
     return errs
   }
 
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -27,7 +67,18 @@ export default function LoginPage() {
     setFieldErrors({})
     setLoading(true)
     try {
-      await signIn({ email, password })
+      // signIn() returns the full profile including the role field
+      const profile = await signIn({ email, password })
+
+      // ── Role-based redirect ──────────────────────────────────────────────
+      // AuthContext.signIn() returns profile which has a `role` field.
+      // We redirect manually here so the user lands on the right page.
+      switch (profile?.role) {
+        case 'admin':    navigate('/admin');    break
+        case 'manager':  navigate('/manager');  break
+        case 'employee': navigate('/employee'); break
+        default:         navigate('/admin');    break   // safe fallback
+      }
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.')
     } finally {
@@ -60,27 +111,47 @@ export default function LoginPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
-                ${fieldErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+              className={`w-full px-4 py-2.5 border rounded-lg text-sm
+                focus:outline-none focus:ring-2 focus:ring-blue-500
+                ${fieldErrors.email
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-gray-300'}`}
             />
             {fieldErrors.email && (
               <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>
             )}
           </div>
 
-          {/* Password */}
+          {/* Password with show/hide toggle */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
-                ${fieldErrors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-            />
+            {/* Wrapper gives the eye button a place to sit inside the input */}
+            <div className="relative">
+              <input
+                type={showPwd ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className={`w-full px-4 py-2.5 pr-10 border rounded-lg text-sm
+                  focus:outline-none focus:ring-2 focus:ring-blue-500
+                  ${fieldErrors.password
+                    ? 'border-red-400 bg-red-50'
+                    : 'border-gray-300'}`}
+              />
+              {/* Eye toggle button — positioned inside the input on the right */}
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                className="absolute inset-y-0 right-3 flex items-center
+                           text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}             // don't steal focus from the form flow
+                aria-label={showPwd ? 'Hide password' : 'Show password'}
+              >
+                {showPwd ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
             {fieldErrors.password && (
               <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
             )}
@@ -88,7 +159,8 @@ export default function LoginPage() {
 
           {/* Global error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3">
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm
+                            rounded-lg px-4 py-3">
               {error}
             </div>
           )}
@@ -97,7 +169,8 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
+                       text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
           >
             {loading ? 'Signing in…' : 'Login'}
           </button>
