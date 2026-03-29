@@ -64,6 +64,8 @@ export function AuthProvider({ children }) {
       .insert({ id: data.user.id, company_id: company.id, name, email, role: 'admin' })
     if (userError) throw userError
 
+    await fetchProfile(data.user.id)
+
     return data
   }
 
