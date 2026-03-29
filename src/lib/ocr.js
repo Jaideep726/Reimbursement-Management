@@ -1,32 +1,21 @@
-// OCR receipt parsing using Claude API
-// Takes a base64 image string, returns structured expense fields
-
 export async function parseReceiptWithOCR(base64Image, mediaType = 'image/jpeg') {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 512,
-      messages: [
-        {
-          role: 'user',
-          content: [
+  const key = import.meta.env.VITE_GEMINI_API_KEY
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
             {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Image,
-              },
+              inline_data: {
+                mime_type: mediaType,
+                data: base64Image
+              }
             },
             {
-              type: 'text',
               text: `Extract expense details from this receipt. Return ONLY valid JSON, no markdown, no explanation:
 {
   "amount": <number or null>,
@@ -35,25 +24,26 @@ export async function parseReceiptWithOCR(base64Image, mediaType = 'image/jpeg')
   "merchant": <string or null>,
   "category": <one of: Food, Travel, Accommodation, Office Supplies, Entertainment, Medical, Other>,
   "description": <short description string>
-}`,
-            },
-          ],
-        },
-      ],
-    }),
-  })
+}`
+            }
+          ]
+        }]
+      })
+    }
+  )
 
   const data = await response.json()
 
   try {
-    const text = data.content[0].text.trim()
-    return JSON.parse(text)
+    const text = data.candidates[0].content.parts[0].text.trim()
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    return JSON.parse(cleaned)
   } catch {
+    console.log('GEMINI RESPONSE:', JSON.stringify(data))
     throw new Error('Failed to parse OCR response')
   }
 }
 
-// Helper: convert File object to base64
 export function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
