@@ -41,6 +41,7 @@ create table rule_approvers (
   rule_id uuid references approval_rules(id) on delete cascade,
   approver_id uuid references users(id) on delete cascade,
   step_order int not null,
+  is_auto_approver boolean default false,
   unique(rule_id, step_order)
 );
 
