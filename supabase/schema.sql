@@ -20,7 +20,6 @@ create table users (
   email text not null,
   role text not null check (role in ('admin', 'manager', 'employee')),
   manager_id uuid references users(id) on delete set null,
-  is_manager_approver boolean default false,
   created_at timestamptz default now()
 );
 
@@ -31,6 +30,7 @@ create table approval_rules (
   name text not null,
   description text,
   sequential boolean default true,
+  is_manager_approver boolean default false,
   min_approval_pct int default 0 check (min_approval_pct between 0 and 100),
   created_at timestamptz default now()
 );
