@@ -1,8 +1,4 @@
-// src/pages/AdminPage.jsx — Task 03 + Task 04
-// Task 03: Users tab — user table + Add User modal
-// Task 04: Approval Rules tab — list rules + Create Rule form
-//          Includes friend's schema update: is_auto_approver per approver
-
+// src/pages/AdminPage.jsx — Task 03 + Task 04 + Edit/Delete
 import { useState, useEffect } from 'react'
 import { supabase }            from '@/lib/supabase'
 import { createUser }          from '@/lib/admin'
@@ -18,6 +14,45 @@ const ROLE_BADGE = {
 
 const TABS = ['Users', 'Approval Rules', 'All Expenses']
 
+// ─── Confirm Delete Dialog ─────────────────────────────────────────────────
+function ConfirmDeleteDialog({ title, message, onConfirm, onCancel, loading }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(15,23,42,0.7)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl bg-white">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-red-600 text-lg">🗑️</span>
+          </div>
+          <h3 className="text-base font-bold text-gray-900">{title}</h3>
+        </div>
+        <p className="text-sm text-gray-500 mb-6 pl-[52px]">{message}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-gray-700
+                       border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white
+                       bg-red-600 hover:bg-red-700 disabled:bg-red-300 transition-colors"
+          >
+            {loading ? 'Deleting…' : 'Yes, Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Change Password Modal ─────────────────────────────────────────────────
 function ChangePasswordModal({ onClose, userEmail }) {
   const [currentPwd, setCurrentPwd]   = useState('')
@@ -32,10 +67,10 @@ function ChangePasswordModal({ onClose, userEmail }) {
 
   async function handleUpdate() {
     setError(null)
-    if (!currentPwd)               return setError('Enter your current password.')
-    if (newPwd.length < 6)         return setError('New password must be at least 6 characters.')
-    if (newPwd !== confirmPwd)      return setError('New passwords do not match.')
-    if (newPwd === currentPwd)      return setError('New password must differ from current password.')
+    if (!currentPwd)          return setError('Enter your current password.')
+    if (newPwd.length < 6)    return setError('New password must be at least 6 characters.')
+    if (newPwd !== confirmPwd) return setError('New passwords do not match.')
+    if (newPwd === currentPwd) return setError('New password must differ from current password.')
     setLoading(true)
     try {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: currentPwd })
@@ -160,8 +195,8 @@ function SideDrawer({ open, onClose, onChangePwd, onLogout }) {
 export default function AdminPage() {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab]       = useState('Users')
-  const [showDrawer, setShowDrawer]     = useState(false)
+  const [activeTab, setActiveTab]         = useState('Users')
+  const [showDrawer, setShowDrawer]       = useState(false)
   const [showChangePwd, setShowChangePwd] = useState(false)
 
   async function handleLogout() {
@@ -174,7 +209,6 @@ export default function AdminPage() {
       className="min-h-screen px-4 py-8"
       style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%)' }}
     >
-      {/* ── Side Drawer ── */}
       <SideDrawer
         open={showDrawer}
         onClose={() => setShowDrawer(false)}
@@ -182,7 +216,6 @@ export default function AdminPage() {
         onLogout={handleLogout}
       />
 
-      {/* ── Change Password Modal ── */}
       {showChangePwd && (
         <ChangePasswordModal
           onClose={() => setShowChangePwd(false)}
@@ -191,8 +224,6 @@ export default function AdminPage() {
       )}
 
       <div className="max-w-5xl mx-auto">
-
-        {/* ── Page header with hamburger ── */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => setShowDrawer(true)}
@@ -207,7 +238,6 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
         </div>
 
-        {/* ── Tab bar ── */}
         <div className="flex gap-1 mb-6 bg-white/10 rounded-xl p-1 w-fit">
           {TABS.map(tab => (
             <button
@@ -223,26 +253,27 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* ── Tab content ── */}
         <div className="bg-white rounded-2xl shadow-2xl p-6">
           {activeTab === 'Users'          && <UsersTab         companyId={profile?.company_id} />}
           {activeTab === 'Approval Rules' && <ApprovalRulesTab companyId={profile?.company_id} />}
           {activeTab === 'All Expenses'   && <PlaceholderTab   label="All Expenses — coming soon" />}
         </div>
-
       </div>
     </div>
   )
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// TASK 04 — APPROVAL RULES TAB
+// APPROVAL RULES TAB
 // ═════════════════════════════════════════════════════════════════════════════
 function ApprovalRulesTab({ companyId }) {
-  const [rules,           setRules]           = useState([])
-  const [managers,        setManagers]        = useState([])
-  const [loading,         setLoading]         = useState(true)
-  const [showForm,        setShowForm]        = useState(false)
+  const [rules,          setRules]          = useState([])
+  const [managers,       setManagers]       = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [showForm,       setShowForm]       = useState(false)
+  const [editingRule,    setEditingRule]    = useState(null)   // rule object being edited
+  const [deleteTarget,   setDeleteTarget]   = useState(null)   // rule object to delete
+  const [deleteLoading,  setDeleteLoading]  = useState(false)
 
   const fetchRules = async () => {
     if (!companyId) return
@@ -273,16 +304,66 @@ function ApprovalRulesTab({ companyId }) {
 
   const handleRuleCreated = () => {
     setShowForm(false)
+    setEditingRule(null)
     fetchRules()
+  }
+
+  const handleEditClick = async (rule) => {
+    // Fetch existing approvers for this rule so the form is pre-populated
+    const { data: approverRows } = await supabase
+      .from('rule_approvers')
+      .select('approver_id, step_order, is_auto_approver')
+      .eq('rule_id', rule.id)
+      .order('step_order', { ascending: true })
+
+    // Enrich with manager names
+    const enriched = (approverRows ?? []).map(row => {
+      const mgr = managers.find(m => m.id === row.approver_id)
+      return {
+        id:             row.approver_id,
+        name:           mgr?.name ?? row.approver_id,
+        isAutoApprover: row.is_auto_approver,
+      }
+    })
+
+    setEditingRule({ ...rule, existingApprovers: enriched })
+    setShowForm(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleteLoading(true)
+    try {
+      // Delete child approvers first (FK constraint), then the rule
+      await supabase.from('rule_approvers').delete().eq('rule_id', deleteTarget.id)
+      await supabase.from('approval_rules').delete().eq('id', deleteTarget.id)
+      setDeleteTarget(null)
+      fetchRules()
+    } catch (err) {
+      console.error('Delete failed', err)
+    } finally {
+      setDeleteLoading(false)
+    }
   }
 
   return (
     <div>
+      {/* Confirm delete dialog */}
+      {deleteTarget && (
+        <ConfirmDeleteDialog
+          title="Delete Rule"
+          message={`Are you sure you want to delete "${deleteTarget.name}"? This cannot be undone.`}
+          loading={deleteLoading}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Approval Rules</h2>
         {!showForm && (
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => { setEditingRule(null); setShowForm(true) }}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm
                        font-medium rounded-lg transition-colors"
           >
@@ -291,7 +372,7 @@ function ApprovalRulesTab({ companyId }) {
         )}
       </div>
 
-      {/* ── Existing rules list ── */}
+      {/* Rules list */}
       {!showForm && (
         loading ? (
           <p className="text-sm text-gray-500 py-8 text-center">Loading rules…</p>
@@ -303,31 +384,54 @@ function ApprovalRulesTab({ companyId }) {
           <div className="space-y-3 mb-6">
             {rules.map(rule => (
               <div key={rule.id}
-                className="p-4 rounded-xl border border-gray-100 hover:bg-gray-50
-                           transition-colors">
-                <p className="font-medium text-gray-900 text-sm">{rule.name}</p>
-                {rule.description && (
-                  <p className="text-xs text-gray-500 mt-0.5">{rule.description}</p>
-                )}
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {rule.sequential && (
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100
-                                     text-purple-700 border border-purple-200">
-                      Sequential
-                    </span>
-                  )}
-                  {rule.is_manager_approver && (
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100
-                                     text-blue-700 border border-blue-200">
-                      Manager first
-                    </span>
-                  )}
-                  {rule.min_approval_pct > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-100
-                                     text-yellow-700 border border-yellow-200">
-                      {rule.min_approval_pct}% required
-                    </span>
-                  )}
+                className="p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm">{rule.name}</p>
+                    {rule.description && (
+                      <p className="text-xs text-gray-500 mt-0.5">{rule.description}</p>
+                    )}
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {rule.sequential && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100
+                                         text-purple-700 border border-purple-200">
+                          Sequential
+                        </span>
+                      )}
+                      {rule.is_manager_approver && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100
+                                         text-blue-700 border border-blue-200">
+                          Manager first
+                        </span>
+                      )}
+                      {rule.min_approval_pct > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-100
+                                         text-yellow-700 border border-yellow-200">
+                          {rule.min_approval_pct}% required
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleEditClick(rule)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
+                                 font-medium text-blue-600 border border-blue-200
+                                 hover:bg-blue-50 transition-colors"
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(rule)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
+                                 font-medium text-red-500 border border-red-200
+                                 hover:bg-red-50 transition-colors"
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -335,13 +439,14 @@ function ApprovalRulesTab({ companyId }) {
         )
       )}
 
-      {/* ── Create Rule form ── */}
+      {/* Create / Edit Rule form */}
       {showForm && (
         <CreateRuleForm
           companyId={companyId}
           managers={managers}
+          editingRule={editingRule}
           onSaved={handleRuleCreated}
-          onCancel={() => setShowForm(false)}
+          onCancel={() => { setShowForm(false); setEditingRule(null) }}
         />
       )}
     </div>
@@ -349,28 +454,25 @@ function ApprovalRulesTab({ companyId }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CREATE RULE FORM
-// Saves to: approval_rules + rule_approvers (one row per approver)
-// Friend's schema note: rule_approvers has is_auto_approver boolean
-// if is_auto_approver = true for an approver, their approval instantly
-// closes the expense regardless of other pending steps (e.g. CFO rule)
+// CREATE / EDIT RULE FORM
 // ─────────────────────────────────────────────────────────────────────────────
-function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
-  const [ruleName,          setRuleName]          = useState('')
-  const [description,       setDescription]       = useState('')
-  const [isManagerApprover, setIsManagerApprover] = useState(false)
-  const [isSequential,      setIsSequential]      = useState(false)
-  const [minPct,            setMinPct]            = useState(0)
-  const [approvers,         setApprovers]         = useState([])
+function CreateRuleForm({ companyId, managers, editingRule, onSaved, onCancel }) {
+  const isEditing = !!editingRule
+
+  const [ruleName,          setRuleName]          = useState(editingRule?.name ?? '')
+  const [description,       setDescription]       = useState(editingRule?.description ?? '')
+  const [isManagerApprover, setIsManagerApprover] = useState(editingRule?.is_manager_approver ?? false)
+  const [isSequential,      setIsSequential]      = useState(editingRule?.sequential ?? false)
+  const [minPct,            setMinPct]            = useState(editingRule?.min_approval_pct ?? 0)
+  const [approvers,         setApprovers]         = useState(editingRule?.existingApprovers ?? [])
   const [selectedManager,   setSelectedManager]   = useState('')
   const [loading,           setLoading]           = useState(false)
   const [error,             setError]             = useState('')
   const [fieldErrors,       setFieldErrors]       = useState({})
 
-  // ── Add approver to ordered list ──────────────────────────────────────────
   const handleAddApprover = () => {
     if (!selectedManager) return
-    if (approvers.find(a => a.id === selectedManager)) return   // no duplicates
+    if (approvers.find(a => a.id === selectedManager)) return
     const manager = managers.find(m => m.id === selectedManager)
     setApprovers(prev => [
       ...prev,
@@ -382,7 +484,6 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
   const handleRemoveApprover = (id) =>
     setApprovers(prev => prev.filter(a => a.id !== id))
 
-  // ── Toggle the Auto Approver checkbox for one approver ────────────────────
   const handleToggleAutoApprover = (id) =>
     setApprovers(prev =>
       prev.map(a => a.id === id ? { ...a, isAutoApprover: !a.isAutoApprover } : a)
@@ -390,12 +491,11 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
 
   const validate = () => {
     const errs = {}
-    if (!ruleName.trim())         errs.ruleName = 'Rule name is required'
-    if (minPct < 0 || minPct > 100) errs.minPct = 'Must be between 0 and 100'
+    if (!ruleName.trim())            errs.ruleName = 'Rule name is required'
+    if (minPct < 0 || minPct > 100)  errs.minPct   = 'Must be between 0 and 100'
     return errs
   }
 
-  // ── Save rule + approvers to Supabase ─────────────────────────────────────
   const handleSave = async () => {
     setError('')
     const errs = validate()
@@ -403,33 +503,54 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
     setFieldErrors({})
     setLoading(true)
     try {
-      // Step 1: Insert the rule row
-      // NOTE: is_manager_approver is a FLAG only — it does NOT add the manager
-      // to the approvers list shown here. Friend's approvalEngine.js injects
-      // the employee's manager automatically when an expense is submitted.
-      const { data: rule, error: ruleErr } = await supabase
-        .from('approval_rules')
-        .insert({
-          company_id:          companyId,
-          name:                ruleName,
-          description:         description || null,
-          is_manager_approver: isManagerApprover,
-          sequential:          isSequential,
-          min_approval_pct:    minPct,
-        })
-        .select()
-        .single()
+      let ruleId
 
-      if (ruleErr) throw ruleErr
+      if (isEditing) {
+        // Update the rule row
+        const { error: updateErr } = await supabase
+          .from('approval_rules')
+          .update({
+            name:                ruleName,
+            description:         description || null,
+            is_manager_approver: isManagerApprover,
+            sequential:          isSequential,
+            min_approval_pct:    minPct,
+          })
+          .eq('id', editingRule.id)
+        if (updateErr) throw updateErr
+        ruleId = editingRule.id
 
-      // Step 2: Insert one row per approver
-      // is_auto_approver comes from friend's schema update to rule_approvers
+        // Delete all old approver rows, then re-insert the updated list
+        const { error: delErr } = await supabase
+          .from('rule_approvers')
+          .delete()
+          .eq('rule_id', ruleId)
+        if (delErr) throw delErr
+      } else {
+        // Insert new rule row
+        const { data: rule, error: ruleErr } = await supabase
+          .from('approval_rules')
+          .insert({
+            company_id:          companyId,
+            name:                ruleName,
+            description:         description || null,
+            is_manager_approver: isManagerApprover,
+            sequential:          isSequential,
+            min_approval_pct:    minPct,
+          })
+          .select()
+          .single()
+        if (ruleErr) throw ruleErr
+        ruleId = rule.id
+      }
+
+      // Insert approvers (fresh for both create and edit)
       if (approvers.length > 0) {
         const approverRows = approvers.map((approver, index) => ({
-          rule_id:          rule.id,
+          rule_id:          ruleId,
           approver_id:      approver.id,
           step_order:       index,
-          is_auto_approver: approver.isAutoApprover,  // ← friend's new field
+          is_auto_approver: approver.isAutoApprover,
         }))
         const { error: approverErr } = await supabase
           .from('rule_approvers')
@@ -454,25 +575,23 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-gray-900">Create Approval Rule</h3>
+      <h3 className="text-base font-bold text-gray-900">
+        {isEditing ? `✏️ Edit Rule — ${editingRule.name}` : 'Create Approval Rule'}
+      </h3>
 
       {/* Rule name */}
       <div>
-        <label className="block text-xs font-semibold text-gray-600
-                          uppercase tracking-wide mb-1">Rule Name</label>
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Rule Name</label>
         <input type="text" value={ruleName}
           onChange={e => setRuleName(e.target.value)}
           placeholder="e.g. Travel Expense Rule"
           className={inputClass('ruleName')} />
-        {fieldErrors.ruleName && (
-          <p className="text-red-500 text-xs mt-1">{fieldErrors.ruleName}</p>
-        )}
+        {fieldErrors.ruleName && <p className="text-red-500 text-xs mt-1">{fieldErrors.ruleName}</p>}
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-xs font-semibold text-gray-600
-                          uppercase tracking-wide mb-1">
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
           Description
           <span className="normal-case font-normal text-gray-400 ml-1">(optional)</span>
         </label>
@@ -484,39 +603,28 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
 
       {/* Toggles */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-        {/* Manager Approver toggle */}
-        <div className="flex items-center justify-between p-4 rounded-xl
-                        border border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50">
           <div>
             <p className="text-sm font-medium text-gray-900">Manager Approver</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Employee's manager approves first, auto
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">Employee's manager approves first, auto</p>
           </div>
           <button type="button" onClick={() => setIsManagerApprover(v => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full
-                        transition-colors ${isManagerApprover ? 'bg-blue-600' : 'bg-gray-200'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white
-                              shadow transition-transform
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                        ${isManagerApprover ? 'bg-blue-600' : 'bg-gray-200'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
                               ${isManagerApprover ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
 
-        {/* Sequential toggle */}
-        <div className="flex items-center justify-between p-4 rounded-xl
-                        border border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50">
           <div>
             <p className="text-sm font-medium text-gray-900">Sequential</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Each approver waits for the previous one
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">Each approver waits for the previous one</p>
           </div>
           <button type="button" onClick={() => setIsSequential(v => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full
-                        transition-colors ${isSequential ? 'bg-blue-600' : 'bg-gray-200'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white
-                              shadow transition-transform
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                        ${isSequential ? 'bg-blue-600' : 'bg-gray-200'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
                               ${isSequential ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
@@ -524,12 +632,9 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
 
       {/* Min approval % */}
       <div>
-        <label className="block text-xs font-semibold text-gray-600
-                          uppercase tracking-wide mb-1">
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
           Minimum Approval %
-          <span className="normal-case font-normal text-gray-400 ml-1">
-            (0 = no approval needed)
-          </span>
+          <span className="normal-case font-normal text-gray-400 ml-1">(0 = no approval needed)</span>
         </label>
         <input
           type="text"
@@ -537,23 +642,17 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
           placeholder="Enter value 0–100"
           value={minPct}
           onChange={e => {
-            const v = e.target.value;
-            if (v === "" || (/^\d+$/.test(v) && +v <= 100)) setMinPct(v);
+            const v = e.target.value
+            if (v === '' || (/^\d+$/.test(v) && +v <= 100)) setMinPct(v)
           }}
           className={inputClass('minPct')}
         />
-
-        {fieldErrors.minPct && (
-          <p className="text-red-500 text-xs mt-1">{fieldErrors.minPct}</p>
-        )}
+        {fieldErrors.minPct && <p className="text-red-500 text-xs mt-1">{fieldErrors.minPct}</p>}
       </div>
 
       {/* Approvers list */}
       <div>
-        <label className="block text-xs font-semibold text-gray-600
-                          uppercase tracking-wide mb-2">Approvers</label>
-
-        {/* Add approver row */}
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Approvers</label>
         <div className="flex gap-2 mb-3">
           <select value={selectedManager}
             onChange={e => setSelectedManager(e.target.value)}
@@ -572,7 +671,6 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
           </button>
         </div>
 
-        {/* Ordered approvers */}
         {approvers.length === 0 ? (
           <p className="text-xs text-gray-400 py-3 text-center border border-dashed
                         border-gray-200 rounded-lg">
@@ -582,25 +680,13 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
           <div className="space-y-2">
             {approvers.map((approver, index) => (
               <div key={approver.id}
-                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100
-                           bg-gray-50">
-
-                {/* Step number */}
+                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
                 <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs
                                  font-bold flex items-center justify-center flex-shrink-0">
                   {index + 1}
                 </span>
-
-                {/* Name */}
-                <span className="flex-1 text-sm font-medium text-gray-900">
-                  {approver.name}
-                </span>
-
-                {/* Auto Approver checkbox
-                    Friend's is_auto_approver field: if this person approves,
-                    expense is immediately approved regardless of other steps */}
-                <label className="flex items-center gap-1.5 text-xs text-gray-600
-                                  cursor-pointer select-none">
+                <span className="flex-1 text-sm font-medium text-gray-900">{approver.name}</span>
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={approver.isAutoApprover}
@@ -609,8 +695,6 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
                   />
                   Auto Approver
                 </label>
-
-                {/* Remove */}
                 <button type="button" onClick={() => handleRemoveApprover(approver.id)}
                   className="text-gray-400 hover:text-red-500 transition-colors text-xs">
                   Remove
@@ -622,8 +706,7 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 text-sm
-                        rounded-lg px-4 py-3">{error}</div>
+        <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3">{error}</div>
       )}
 
       <div className="flex gap-3 pt-2">
@@ -636,7 +719,7 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
           className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white
                      bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
                      disabled:cursor-not-allowed transition-colors">
-          {loading ? 'Saving…' : 'Save Rule'}
+          {loading ? 'Saving…' : isEditing ? 'Update Rule' : 'Save Rule'}
         </button>
       </div>
     </div>
@@ -644,12 +727,15 @@ function CreateRuleForm({ companyId, managers, onSaved, onCancel }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// TASK 03 — USERS TAB (unchanged from Task 03)
+// USERS TAB
 // ═════════════════════════════════════════════════════════════════════════════
 function UsersTab({ companyId }) {
-  const [users,       setUsers]     = useState([])
-  const [loading,     setLoading]   = useState(true)
-  const [showModal,   setShowModal] = useState(false)
+  const [users,         setUsers]        = useState([])
+  const [loading,       setLoading]      = useState(true)
+  const [showModal,     setShowModal]    = useState(false)
+  const [editingUser,   setEditingUser]  = useState(null)
+  const [deleteTarget,  setDeleteTarget] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const fetchUsers = async () => {
     if (!companyId) return
@@ -664,15 +750,50 @@ function UsersTab({ companyId }) {
 
   useEffect(() => { fetchUsers() }, [companyId])
 
-  const handleUserCreated = () => { setShowModal(false); fetchUsers() }
+  const handleUserSaved = () => {
+    setShowModal(false)
+    setEditingUser(null)
+    fetchUsers()
+  }
+
+  const handleEditClick = (user) => {
+    setEditingUser(user)
+    setShowModal(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleteLoading(true)
+    try {
+      await supabase.from('users').delete().eq('id', deleteTarget.id)
+      setDeleteTarget(null)
+      fetchUsers()
+    } catch (err) {
+      console.error('Delete failed', err)
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   return (
     <div>
+      {deleteTarget && (
+        <ConfirmDeleteDialog
+          title="Delete User"
+          message={`Are you sure you want to delete "${deleteTarget.name}"? This cannot be undone.`}
+          loading={deleteLoading}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Team Members</h2>
-        <button onClick={() => setShowModal(true)}
+        <button
+          onClick={() => { setEditingUser(null); setShowModal(true) }}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm
-                     font-medium rounded-lg transition-colors">
+                     font-medium rounded-lg transition-colors"
+        >
           + Add User
         </button>
       </div>
@@ -680,9 +801,7 @@ function UsersTab({ companyId }) {
       {loading ? (
         <p className="text-sm text-gray-500 py-8 text-center">Loading users…</p>
       ) : users.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">
-          No users yet. Add one to get started.
-        </p>
+        <p className="text-sm text-gray-400 py-8 text-center">No users yet. Add one to get started.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
           <table className="w-full text-sm">
@@ -692,11 +811,18 @@ function UsersTab({ companyId }) {
                 <th className="px-4 py-3 text-left">Email</th>
                 <th className="px-4 py-3 text-left">Role</th>
                 <th className="px-4 py-3 text-left">Manager</th>
+                <th className="px-4 py-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {users.map(user => (
-                <UserRow key={user.id} user={user} allUsers={users} />
+                <UserRow
+                  key={user.id}
+                  user={user}
+                  allUsers={users}
+                  onEdit={() => handleEditClick(user)}
+                  onDelete={() => setDeleteTarget(user)}
+                />
               ))}
             </tbody>
           </table>
@@ -707,15 +833,16 @@ function UsersTab({ companyId }) {
         <AddUserModal
           companyId={companyId}
           managers={users.filter(u => u.role === 'manager')}
-          onClose={() => setShowModal(false)}
-          onCreated={handleUserCreated}
+          editingUser={editingUser}
+          onClose={() => { setShowModal(false); setEditingUser(null) }}
+          onSaved={handleUserSaved}
         />
       )}
     </div>
   )
 }
 
-function UserRow({ user, allUsers }) {
+function UserRow({ user, allUsers, onEdit, onDelete }) {
   const manager = allUsers.find(u => u.id === user.manager_id)
   return (
     <tr className="hover:bg-gray-50 transition-colors">
@@ -730,15 +857,38 @@ function UserRow({ user, allUsers }) {
       <td className="px-4 py-3 text-gray-500">
         {manager ? manager.name : <span className="text-gray-300">—</span>}
       </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium
+                       text-blue-600 border border-blue-200 hover:bg-blue-50 transition-colors"
+          >
+            ✏️ Edit
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium
+                       text-red-500 border border-red-200 hover:bg-red-50 transition-colors"
+          >
+            🗑️ Delete
+          </button>
+        </div>
+      </td>
     </tr>
   )
 }
 
-function AddUserModal({ companyId, managers, onClose, onCreated }) {
-  const [name,         setName]        = useState('')
-  const [email,        setEmail]       = useState('')
-  const [role,         setRole]        = useState('employee')
-  const [managerId,    setManagerId]   = useState('')
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD / EDIT USER MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function AddUserModal({ companyId, managers, editingUser, onClose, onSaved }) {
+  const isEditing = !!editingUser
+
+  const [name,         setName]        = useState(editingUser?.name  ?? '')
+  const [email,        setEmail]       = useState(editingUser?.email ?? '')
+  const [role,         setRole]        = useState(editingUser?.role  ?? 'employee')
+  const [managerId,    setManagerId]   = useState(editingUser?.manager_id ?? '')
   const [loading,      setLoading]     = useState(false)
   const [error,        setError]       = useState('')
   const [fieldErrors,  setFieldErrors] = useState({})
@@ -747,10 +897,12 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
   const validate = () => {
     const errs = {}
     if (!name.trim())  errs.name  = 'Name is required'
-    if (!email.trim()) errs.email = 'Email is required'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
-                       errs.email = 'Enter a valid email address'
-    if (!role)         errs.role  = 'Role is required'
+    if (!isEditing) {
+      if (!email.trim()) errs.email = 'Email is required'
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
+                         errs.email = 'Enter a valid email address'
+    }
+    if (!role) errs.role = 'Role is required'
     if (role === 'employee' && !managerId) errs.managerId = 'Please assign a manager'
     return errs
   }
@@ -762,14 +914,28 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
     setFieldErrors({})
     setLoading(true)
     try {
-      const result = await createUser({
-        name, email, role,
-        managerId: role === 'employee' ? managerId : null,
-        companyId,
-      })
-      setTempPassword(result.tempPassword)
+      if (isEditing) {
+        // Update user row (email stays the same — changing auth email needs extra logic)
+        const { error: updateErr } = await supabase
+          .from('users')
+          .update({
+            name,
+            role,
+            manager_id: role === 'employee' ? managerId : null,
+          })
+          .eq('id', editingUser.id)
+        if (updateErr) throw updateErr
+        onSaved()
+      } else {
+        const result = await createUser({
+          name, email, role,
+          managerId: role === 'employee' ? managerId : null,
+          companyId,
+        })
+        setTempPassword(result.tempPassword)
+      }
     } catch (err) {
-      setError(err.message || 'Failed to create user. Please try again.')
+      setError(err.message || 'Failed to save user. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -782,9 +948,10 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
        ? 'border-red-400 bg-red-50'
        : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`
 
+  // Success screen shown only after creating a NEW user
   if (tempPassword) {
     return (
-      <Overlay onClose={onCreated}>
+      <Overlay onClose={onSaved}>
         <div className="text-center">
           <div className="w-12 h-12 bg-green-100 rounded-full flex items-center
                           justify-center mx-auto mb-4">
@@ -803,7 +970,7 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
                           tracking-widest select-all">
             {tempPassword}
           </div>
-          <button onClick={onCreated}
+          <button onClick={onSaved}
             className="w-full py-2.5 rounded-lg text-sm font-semibold text-white
                        bg-blue-600 hover:bg-blue-700 transition-colors">
             Done
@@ -815,28 +982,44 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
 
   return (
     <Overlay onClose={onClose}>
-      <h3 className="text-lg font-bold text-gray-900 mb-1">Add New User</h3>
+      <h3 className="text-lg font-bold text-gray-900 mb-1">
+        {isEditing ? `✏️ Edit User — ${editingUser.name}` : 'Add New User'}
+      </h3>
       <p className="text-sm text-gray-500 mb-5">
-        A temporary password will be generated automatically.
+        {isEditing
+          ? 'Update the details below. Email cannot be changed here.'
+          : 'A temporary password will be generated automatically.'}
       </p>
+
       <div className="space-y-4">
+        {/* Name */}
         <div>
-          <label className="block text-xs font-semibold text-gray-600
-                            uppercase tracking-wide mb-1">Full Name</label>
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Full Name</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
             placeholder="Jane Smith" className={inputClass('name')} />
           {fieldErrors.name && <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>}
         </div>
+
+        {/* Email — read-only when editing */}
         <div>
-          <label className="block text-xs font-semibold text-gray-600
-                            uppercase tracking-wide mb-1">Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="jane@company.com" className={inputClass('email')} />
-          {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Email</label>
+          {isEditing ? (
+            <div className="w-full px-4 py-2.5 rounded-lg text-sm border border-slate-200
+                            bg-slate-100 text-gray-400 cursor-not-allowed">
+              {email}
+            </div>
+          ) : (
+            <>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="jane@company.com" className={inputClass('email')} />
+              {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
+            </>
+          )}
         </div>
+
+        {/* Role */}
         <div>
-          <label className="block text-xs font-semibold text-gray-600
-                            uppercase tracking-wide mb-1">Role</label>
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Role</label>
           <select value={role} onChange={e => { setRole(e.target.value); setManagerId('') }}
             className={`${inputClass('role')} bg-slate-50`}>
             <option value="employee">Employee</option>
@@ -844,10 +1027,11 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
           </select>
           {fieldErrors.role && <p className="text-red-500 text-xs mt-1">{fieldErrors.role}</p>}
         </div>
+
+        {/* Manager — only for employees */}
         {role === 'employee' && (
           <div>
-            <label className="block text-xs font-semibold text-gray-600
-                              uppercase tracking-wide mb-1">Assign Manager</label>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Assign Manager</label>
             <select value={managerId} onChange={e => setManagerId(e.target.value)}
               className={`${inputClass('managerId')} bg-slate-50`}>
               <option value="">— Select a manager —</option>
@@ -859,11 +1043,12 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
             {fieldErrors.managerId && <p className="text-red-500 text-xs mt-1">{fieldErrors.managerId}</p>}
           </div>
         )}
+
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm
-                          rounded-lg px-4 py-3">{error}</div>
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3">{error}</div>
         )}
       </div>
+
       <div className="flex gap-3 mt-6">
         <button onClick={onClose}
           className="flex-1 py-2.5 rounded-lg text-sm font-medium text-gray-700
@@ -874,7 +1059,7 @@ function AddUserModal({ companyId, managers, onClose, onCreated }) {
           className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white
                      bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
                      disabled:cursor-not-allowed transition-colors">
-          {loading ? 'Creating…' : 'Save User'}
+          {loading ? 'Saving…' : isEditing ? 'Update User' : 'Save User'}
         </button>
       </div>
     </Overlay>
